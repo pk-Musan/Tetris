@@ -9,9 +9,10 @@ const TITLE = 0;
 const MAIN = 1;
 
 // ブロックの状態
-const CLEAR = 0;    // 次のブロックに移るとき
+const CREATE = 0;    // 次のブロックに移るとき
 const OPERATE = 1;  // ブロックの操作中
 const LOCK = 2;     // ブロックが置かれたとき
+const EFECT = 3;
 
 let core;
 let system;
@@ -22,8 +23,11 @@ let block = [];
 let block_colors = [];
 let block_state;        // ブロックの状態
 let block_stack = [];   // 待機しているブロックの種類
+
 let block_timer;        // ブロックが落ち始めたframe
-let key_timer = 0;
+let key_timer = 0;      // 最後にキー操作を行ったframe
+let play_timer;         // ブロックが落ち切ってからのあそび(時間)
+let efect_timer;
 
 let operate_block = [];
 let block_x;
@@ -131,7 +135,7 @@ function init() {
     ]
 
     block_stack = makeRandomStack(0, 6);
-    block_state = CLEAR;
+    block_state = CREATE;
 }
 
 let System = Class.create({
@@ -174,7 +178,7 @@ let MainScene = Class.create(Scene, {
         core.replaceScene(this);
 
         let stage_image;
-        let image_number;
+        //let image_number;
         
         this.backgroundColor = '#000000'
 
@@ -192,7 +196,7 @@ let MainScene = Class.create(Scene, {
 
         this.addEventListener('enterframe', function() {
             switch(block_state) {
-                case CLEAR:
+                case CREATE:
                     // 次のブロックが何かを見せるなら,なくなってから補充では遅い
                     if (block_stack.length == 7) {
                         block_stack = block_stack.concat(makeRandomStack(0, 6));
@@ -203,7 +207,7 @@ let MainScene = Class.create(Scene, {
                     block_y = 0;
 
                     //operate_block_image = [];
-                    image_number = 0;
+                    //image_number = 0;
 
                     for (let j=0; j<4; j++) {
                         for (let i=0; i<4; i++) {
@@ -218,45 +222,58 @@ let MainScene = Class.create(Scene, {
 
                                this.addChild(block_image[block_image.length-1]);
 
-                               image_number++;
+                               //image_number++;
                             }
                         }
                     }
 
+                    play_timer = core.frame;
                     block_timer = core.frame;
                     block_state = OPERATE;
 
                     break;
                 
                 case OPERATE:
-                    // 自由落下の部分
-                    if ((core.frame - block_timer) % (core.fps/2) == 0) {
-                        clearOperateBlock(block_y, block_x);
-
-                        let before_y = block_y;
-
-                        block_y++;
-
-                        if (hitCheck(block_y, block_x)) {
-                            block_stack = block_stack.slice(1);
-                            block_y = before_y;
-                            block_state = CLEAR;
-                            console.log(block_stack);
-                        }
-                        moveOperateBlock(block_y, block_x);
-                    }
-
                     // キー操作による移動部分
-                    if (core.frame - key_timer > core.fps/10) {
+                    if (core.frame - key_timer >= core.fps/10) {
                         clearOperateBlock(block_y, block_x);
 
                         if (keyInput()) {
                             //moveOperateBlock(block_y, block_x);
                             key_timer = core.frame;
-                            console.log(this);
+                            play_timer = core.frame;
+                            //console.log(this);
                         }
                         moveOperateBlock(block_y, block_x);
                     }
+                    
+                    // 自由落下の部分
+                    if ((core.frame - block_timer) % (core.fps/2) == 0) {
+                        clearOperateBlock(block_y, block_x);
+
+                        block_y++;
+
+                        if (hitCheck(block_y, block_x)) {
+                            block_y--;
+
+                            if (core.frame - play_timer >= core.fps/2) {
+                                block_stack = block_stack.slice(1);
+                                block_state = LOCK;
+                            }
+                        }
+                        moveOperateBlock(block_y, block_x);
+                    }
+                    break;
+                
+                case LOCK:
+                    if (deleteLines(checkDeleteLines(), this)) {
+                        efect_timer = core.frame;
+                        block_state = EFECT;
+                    }
+                    break;
+
+                case EFECT:
+                    
                     break;
             }
         });
@@ -293,10 +310,10 @@ function makeRandomStack(min, max) {
     return randoms;
 }
 
-function hitCheck(next_y, x) {
+function hitCheck(y, x) {
     for (let j=0; j<4; j++) {
         for (let i=0; i<4; i++) {
-            if (operate_block[j][i] && stage[next_y+j][x+i]) {
+            if (operate_block[j][i] && stage[y+j][x+i]) {
                 console.log('hit!');
                 return true;
             }
@@ -323,16 +340,7 @@ function moveOperateBlock(y, x) {
             }
         }
     }
-    /*
-    for (let j=0; j<4; j++) {
-        for (let i=0; i<4; i++) {
-            if (operate_block[j][i]) {
-                operate_block_image[j][i].y = (y + j) * BLOCK_SIZE;
-                operate_block_image[j][i].x = (x + i) * BLOCK_SIZE;
-            }
-        }
-    }
-    */
+
     let image_number = 4;
     for (let j=0; j<4; j++) {
         for (let i=0; i<4; i++) {
@@ -364,7 +372,6 @@ function keyInput() {
         return true;
     } else if (core.input.left) {
         let before_rotated = operate_block;
-
         operate_block = rotateBlock(operate_block);
         if (hitCheck(block_y, block_x)) operate_block = before_rotated;
         return true;
@@ -382,6 +389,43 @@ function rotateBlock(block) {
         }
     }
     return rotate;
+}
+
+function checkDeleteLines() {
+    let all_zero_flag;
+    let delete_flag;
+    let line;
+    let deleted_lines = [];
+
+    for (let j=STAGE_ROW-2; j>=1; j--) {
+        line = stage[j].slice(1, STAGE_COL-1);
+
+        delete_flag = line.includes(0) ? false : true;
+        all_zero_flag = line.includes(1) ? false : true;
+       
+        if (all_zero_flag) break;
+        if (delete_flag) deleted_lines.push(j);
+    }
+
+    return deleted_lines;
+}
+
+function deleteLines(deleted_lines, scene) {
+    if (deleted_lines.length == 0) return false;
+
+    for (let n=0; n<deleted_lines.length; n++) {
+        for (let i=1; i<STAGE_COL-1; i++) {
+            stage[deleted_lines[n]][i] = 0;
+        }
+
+        for (let i=block_image.length-1; i>=0; i--) {
+            if(block_image[i].y == deleted_lines[n]*BLOCK_SIZE) {
+                scene.removeChild(block_image[i]);
+                block_image.splice(i, 1);
+            }
+        }
+    }
+    return true;
 }
 
 function removeScene(scene) {
