@@ -39,6 +39,7 @@ window.onload = function() {
 
     core = new Core(BLOCK_SIZE * STAGE_COL, BLOCK_SIZE * STAGE_ROW);
     core.fps = 24;
+    core.keybind('W'.charCodeAt(0), 'w');
     core.keybind('A'.charCodeAt(0), 'a');
     core.keybind('S'.charCodeAt(0), 's');
     core.keybind('D'.charCodeAt(0), 'd');
@@ -206,9 +207,6 @@ let MainScene = Class.create(Scene, {
                     block_x = 4;
                     block_y = 0;
 
-                    //operate_block_image = [];
-                    //image_number = 0;
-
                     for (let j=0; j<4; j++) {
                         for (let i=0; i<4; i++) {
                             if (operate_block[j][i]) {
@@ -219,12 +217,11 @@ let MainScene = Class.create(Scene, {
                                 block_image[block_image.length-1].x = (block_x + i)*BLOCK_SIZE;
 
                                this.addChild(block_image[block_image.length-1]);
-
-                               //image_number++;
                             }
                         }
                     }
 
+                    key_timer = core.frame;
                     play_timer = core.frame;
                     block_timer = core.frame;
                     block_state = OPERATE;
@@ -236,12 +233,8 @@ let MainScene = Class.create(Scene, {
                     if (core.frame - key_timer >= core.fps/8) {
                         clearOperateBlock(block_y, block_x);
 
-                        if (keyInput()) {
-                            //moveOperateBlock(block_y, block_x);
-                            key_timer = core.frame;
-                            play_timer = core.frame;
-                            //console.log(this);
-                        }
+                        if (keyInput()) key_timer = core.frame;
+                        
                         moveOperateBlock(block_y, block_x);
                     }
                     
@@ -251,16 +244,21 @@ let MainScene = Class.create(Scene, {
 
                         block_y++;
 
-                        if (hitCheck(block_y, block_x)) {
-                            block_y--;
-
-                            if (core.frame - play_timer >= core.fps/2) {
-                                block_stack = block_stack.slice(1);
-                                block_state = LOCK;
-                            }
-                        }
+                        if (hitCheck(block_y, block_x)) block_y--;
+                        else play_timer = core.frame;   // 落下できた場合はあそびを更新しておく
                         moveOperateBlock(block_y, block_x);
                     }
+
+                    if (core.frame - play_timer >= core.fps/2) {
+                        block_y++;
+
+                        if (hitCheck(block_y, block_x)) {
+                            block_stack = block_stack.slice(1);
+                            block_state = LOCK;
+                        }
+                        block_y--;
+                    } 
+
                     break;
                 
                 case LOCK:
@@ -357,25 +355,30 @@ function moveOperateBlock(y, x) {
 }
 
 function keyInput() {
-    let before_y = block_y;
-    let before_x = block_x;
-
-    if (core.input.a) {
+    if (core.input.w) {
+        while (!hitCheck(block_y, block_x)) block_y++;
+        block_y--;
+        play_timer = 0;
+        return true;
+    } else if (core.input.a) {
         block_x--;
-        if (hitCheck(block_y, block_x)) block_x = before_x;
+        if (hitCheck(block_y, block_x)) block_x++;
+        else play_timer = core.frame;
         return true;
     } else if (core.input.d) {
         block_x++;
-        if (hitCheck(block_y, block_x)) block_x = before_x;
+        if (hitCheck(block_y, block_x)) block_x--;
+        else play_timer = core.frame;
         return true;
     } else if (core.input.s) {
         block_y++;
-        if (hitCheck(block_y, block_x)) block_y = before_y;
+        if (hitCheck(block_y, block_x)) block_y--;
         return true;
     } else if (core.input.left) {
         let before_rotated = operate_block;
         operate_block = rotateBlock(operate_block);
         if (hitCheck(block_y, block_x)) operate_block = before_rotated;
+        else play_timer = core.frame;
         return true;
     }
     return false;
