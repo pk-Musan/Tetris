@@ -213,8 +213,6 @@ let MainScene = Class.create(Scene, {
                         for (let i=0; i<4; i++) {
                             if (operate_block[j][i]) {
                                 block_image.push(new Rectangle(BLOCK_SIZE, BLOCK_SIZE, block_colors[block_stack[0]]));
-                                
-                                // console.log(block_image);
 
                                 block_image[block_image.length-1].y = (block_y + j)*BLOCK_SIZE;
 
@@ -235,7 +233,7 @@ let MainScene = Class.create(Scene, {
                 
                 case OPERATE:
                     // キー操作による移動部分
-                    if (core.frame - key_timer >= core.fps/10) {
+                    if (core.frame - key_timer >= core.fps/8) {
                         clearOperateBlock(block_y, block_x);
 
                         if (keyInput()) {
@@ -269,11 +267,15 @@ let MainScene = Class.create(Scene, {
                     if (deleteLines(checkDeleteLines(), this)) {
                         efect_timer = core.frame;
                         block_state = EFECT;
-                    }
+                    } else block_state = CREATE;
                     break;
 
                 case EFECT:
-                    
+                    if (core.frame - efect_timer >= core.fps/2) {
+                        updateLockBlock();
+                        //console.log(stage);
+                        block_state = CREATE;
+                    } 
                     break;
             }
         });
@@ -426,6 +428,37 @@ function deleteLines(deleted_lines, scene) {
         }
     }
     return true;
+}
+
+function updateLockBlock() {
+    // 一番下のブロックは動きようがないのでその一つ上のラインから見ていく
+    for (let j=STAGE_ROW-3; j>0; j--) {
+        let line = stage[j].slice(1, STAGE_COL-1);
+        let y = j;
+
+        // 今見ているラインにブロックが存在する
+        if (line.includes(1)) {
+            // 次の行にブロックが一つもなければ1ブロック分落下できる
+            while (!stage[y+1].slice(1, STAGE_COL-1).includes(1) && (y+1)<(STAGE_ROW-1)) y++;
+        }
+
+        // １ブロック分も落下していなければ更新処理の必要なし
+        if (y == j) continue;
+
+        for (let i=1; i<STAGE_COL-1; i++) {
+            if (stage[j][i] == 1) {
+                stage[j][i] = 0;
+                stage[y][i] = 1;
+
+                for (let n=0; n<block_image.length; n++) {
+                    if (block_image[n].y == j*BLOCK_SIZE && block_image[n].x == i*BLOCK_SIZE) {
+                        block_image[n].y = y*BLOCK_SIZE;
+                        break;
+                    }
+                }
+            }
+        }
+    }
 }
 
 function removeScene(scene) {
