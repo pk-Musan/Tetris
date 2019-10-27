@@ -24,6 +24,10 @@ let block_colors = [];
 let block_state;        // ブロックの状態
 let block_stack = [];   // 待機しているブロックの種類
 
+let level = 1;
+let speed = level;
+let deleted_line_num = 0;
+
 let block_timer;        // ブロックが落ち始めたframe
 let key_timer = 0;      // 最後にキー操作を行ったframe
 let play_timer;         // ブロックが落ち切ってからのあそび(時間)
@@ -183,15 +187,15 @@ let MainScene = Class.create(Scene, {
         
         this.backgroundColor = '#000000'
 
-        for (let i= 0; i<STAGE_ROW; i++) {
-            for (let j= 0; j<STAGE_COL; j++) {
-                if (stage[i][j] < 0) {
-                    stage_image = new Rectangle(BLOCK_SIZE, BLOCK_SIZE, '#999999');
-                    stage_image.x = j * BLOCK_SIZE;
-                    stage_image.y = i * BLOCK_SIZE;
+        for (let j=0; j<STAGE_ROW; j++) {
+            for (let i=0; i<STAGE_COL; i++) {
+                if (stage[j][i] == -1) stage_image = new Rectangle(BLOCK_SIZE, BLOCK_SIZE, '#999999');
+                else stage_image = new Rectangle(BLOCK_SIZE, BLOCK_SIZE, '#000000');
+
+                stage_image.y = j * BLOCK_SIZE;
+                stage_image.x = i * BLOCK_SIZE;
                     
-                    this.addChild(stage_image);
-                }
+                this.addChild(stage_image);
             }
         }
 
@@ -239,9 +243,8 @@ let MainScene = Class.create(Scene, {
                     }
                     
                     // 自由落下の部分
-                    if ((core.frame - block_timer) % (core.fps/2) == 0) {
+                    if ((core.frame - block_timer) % (core.fps/speed) == 0) {
                         clearOperateBlock(block_y, block_x);
-
                         block_y++;
 
                         if (hitCheck(block_y, block_x)) block_y--;
@@ -250,6 +253,7 @@ let MainScene = Class.create(Scene, {
                     }
 
                     if (core.frame - play_timer >= core.fps/2) {
+                        clearOperateBlock(block_y, block_x);
                         block_y++;
 
                         if (hitCheck(block_y, block_x)) {
@@ -257,6 +261,7 @@ let MainScene = Class.create(Scene, {
                             block_state = LOCK;
                         }
                         block_y--;
+                        moveOperateBlock(block_y, block_x);
                     } 
 
                     break;
@@ -272,13 +277,16 @@ let MainScene = Class.create(Scene, {
                     if (core.frame - efect_timer >= core.fps/2) {
                         updateLockBlock();
                         //console.log(stage);
+                        level = Math.floor(deleted_line_num / 10) + 1;
+                        speed = level;
+                        console.log(level);
                         block_state = CREATE;
                     } 
                     break;
             }
         });
     }
-})
+});
 
 let Rectangle = Class.create(Sprite, {
     initialize: function(w, h, color) {
@@ -417,6 +425,7 @@ function checkDeleteLines() {
 
 function deleteLines(deleted_lines, scene) {
     if (deleted_lines.length == 0) return false;
+    else deleted_line_num += deleted_lines.length;
 
     for (let n=0; n<deleted_lines.length; n++) {
         for (let i=1; i<STAGE_COL-1; i++) {
