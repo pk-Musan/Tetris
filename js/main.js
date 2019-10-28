@@ -1,18 +1,20 @@
 enchant();
 
-const STAGE_COL = 12; // ブロックを詰めるのは10列
-const STAGE_ROW = 22; // ブロックを詰めるのは20行
+const STAGE_COL = 12; // ブロックを詰めるのは10列(1~10)
+const STAGE_ROW = 22; // ブロックを詰めるのは20行(3~22)
 const BLOCK_SIZE = 24;
 
 // Sceneの状態
 const TITLE = 0;
 const MAIN = 1;
+const GAMEOVER = 2;
 
 // ブロックの状態
 const CREATE = 0;    // 次のブロックに移るとき
 const OPERATE = 1;  // ブロックの操作中
 const LOCK = 2;     // ブロックが置かれたとき
 const EFECT = 3;
+const FAIL = 4;
 
 let core;
 let system;
@@ -25,7 +27,7 @@ let block_state;        // ブロックの状態
 let block_stack = [];   // 待機しているブロックの種類
 
 let level = 1;
-let speed = level;
+let speed;
 let deleted_line_num = 0;
 
 let block_timer;        // ブロックが落ち始めたframe
@@ -36,11 +38,9 @@ let efect_timer;
 let operate_block = [];
 let block_x;
 let block_y;
-let block_image = [];
+let block_images = [];
 
 window.onload = function() {
-    init();
-
     core = new Core(BLOCK_SIZE * STAGE_COL, BLOCK_SIZE * STAGE_ROW);
     core.fps = 60;
     core.keybind('W'.charCodeAt(0), 'w');
@@ -85,11 +85,10 @@ function init() {
 
     block = [
         [
-            [0, 0, 1, 0, 0],
-            [0, 0, 1, 0, 0],
-            [0, 0, 1, 0, 0],
-            [0, 0, 1, 0, 0],
-            [0, 0, 0, 0, 0]
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [1, 1, 1, 1],
+            [0, 0, 0, 0]
         ],
         [
             [0, 0, 0, 0],
@@ -99,14 +98,14 @@ function init() {
         ],
         [
             [0, 0, 0, 0],
-            [0, 0, 1, 1],
             [0, 1, 1, 0],
-            [0, 0, 0, 0]
-        ],
-        [
-            [0, 0, 0, 0],
             [1, 1, 0, 0],
+            [0, 0, 0, 0]
+        ],
+        [
+            [0, 0, 0, 0],
             [0, 1, 1, 0],
+            [0, 0, 1, 1],
             [0, 0, 0, 0]
         ],
         [
@@ -139,6 +138,7 @@ function init() {
         '#9900ff'
     ]
 
+    speed = core.fps/2;
     block_stack = makeRandomStack(0, 6);
     block_state = CREATE;
 }
@@ -147,10 +147,13 @@ let System = Class.create({
     changeScene: function(sceneNumber) {
         switch(sceneNumber) {
             case TITLE:
-                let title_scene = new TitleScene();
+                new TitleScene();
                 break;
             case MAIN:
-                let main_scene = new MainScene();
+                new MainScene();
+                break;
+            case GAMEOVER:
+                new GameOverScene();
                 break;
         }
     }
@@ -169,7 +172,8 @@ let TitleScene = Class.create(Scene, {
         this.addChild(title_label);
 
         this.addEventListener('enterframe', function() {
-            if (core.input.up) {
+            if (core.input.down) {
+                console.log("title");
                 removeScene(this);
                 system.changeScene(MAIN);
             }
@@ -182,20 +186,19 @@ let MainScene = Class.create(Scene, {
         Scene.call(this);
         core.replaceScene(this);
 
-        let stage_image;
-        //let image_number;
-        
-        //this.backgroundColor = '#000000'
+        init();
 
-        for (let j=0; j<STAGE_ROW; j++) {
+        let stage_image = [];
+
+        for (let j=1; j<STAGE_ROW; j++) {
             for (let i=0; i<STAGE_COL; i++) {
-                if (stage[j][i] == -1) stage_image = new Rectangle(BLOCK_SIZE, BLOCK_SIZE, '#999999');
-                else stage_image = new Rectangle(BLOCK_SIZE, BLOCK_SIZE, '#000000');
+                if (stage[j][i] == -1) stage_image.push(new Rectangle(BLOCK_SIZE, BLOCK_SIZE, '#999999'));
+                else stage_image.push(new Rectangle(BLOCK_SIZE, BLOCK_SIZE, '#000000'));
 
-                stage_image.y = j * BLOCK_SIZE;
-                stage_image.x = i * BLOCK_SIZE;
+                stage_image[stage_image.length-1].y = j * BLOCK_SIZE;
+                stage_image[stage_image.length-1].x = i * BLOCK_SIZE;
                     
-                this.addChild(stage_image);
+                this.addChild(stage_image[stage_image.length-1]);
             }
         }
 
@@ -211,19 +214,12 @@ let MainScene = Class.create(Scene, {
                     block_x = 4;
                     block_y = 0;
 
-                    for (let j=0; j<4; j++) {
-                        for (let i=0; i<4; i++) {
-                            if (operate_block[j][i]) {
-                                block_image.push(new Rectangle(BLOCK_SIZE, BLOCK_SIZE, block_colors[block_stack[0]]));
-
-                                block_image[block_image.length-1].y = (block_y + j)*BLOCK_SIZE;
-
-                                block_image[block_image.length-1].x = (block_x + i)*BLOCK_SIZE;
-
-                               this.addChild(block_image[block_image.length-1]);
-                            }
-                        }
+                    if (hitCheck(block_y, block_x)) {
+                        block_state = FAIL;
+                        break;
                     }
+
+                    createBlockImage(this); // operate_blockとblock_x, yに基づいてSpriteを生成し，block_imagesとthis(scene)に追加
 
                     key_timer = core.frame;
                     play_timer = core.frame;
@@ -243,12 +239,13 @@ let MainScene = Class.create(Scene, {
                     }
                     
                     // 自由落下の部分
-                    if ((core.frame - block_timer) % (core.fps/speed) == 0) {
+                    if ((core.frame - block_timer) % speed == 0) {
                         clearOperateBlock(block_y, block_x);
                         block_y++;
 
                         if (hitCheck(block_y, block_x)) block_y--;
                         else play_timer = core.frame;   // 落下できた場合はあそびを更新しておく
+
                         moveOperateBlock(block_y, block_x);
                     }
 
@@ -277,12 +274,39 @@ let MainScene = Class.create(Scene, {
                     if (core.frame - efect_timer >= core.fps/2) {
                         updateLockBlock();
                         //console.log(stage);
-                        level = Math.floor(deleted_line_num / 10) + 1;
-                        speed = level;
-                        console.log(level);
+                        if (level <= 21) {
+                            level = Math.floor(deleted_line_num / 10) + 1;
+                            speed = core.fps / 2 - (level-1);
+                        }
+                        console.log("delete = " + deleted_line_num + ", level = " + level);
                         block_state = CREATE;
                     } 
                     break;
+
+                case FAIL:
+                    removeScene(this);
+                    system.changeScene(GAMEOVER);
+            }
+        });
+    }
+});
+
+let GameOverScene = Class.create(Scene, {
+    initialize: function() {
+        Scene.call(this);
+        core.replaceScene(this);
+
+        let gameover_label = new Label();
+        gameover_label.text = 'GAME OVER';
+        gameover_label.y = 24;
+        gameover_label.x = 150;
+
+        this.addChild(gameover_label);
+
+        this.addEventListener('enterframe', function() {
+            if (core.input.up) {
+                removeScene(this);
+                system.changeScene(TITLE);
             }
         });
     }
@@ -330,6 +354,22 @@ function hitCheck(y, x) {
     return false;
 }
 
+function createBlockImage(scene) {
+    for (let j=0; j<4; j++) {
+        for (let i=0; i<4; i++) {
+            if (operate_block[j][i]) {
+                block_images.push(new Rectangle(BLOCK_SIZE, BLOCK_SIZE, block_colors[block_stack[0]]));
+
+                block_images[block_images.length-1].y = (block_y + j)*BLOCK_SIZE;
+
+                block_images[block_images.length-1].x = (block_x + i)*BLOCK_SIZE;
+
+                scene.addChild(block_images[block_images.length-1]);
+            }
+        }
+    }
+}
+
 function clearOperateBlock(y, x) {
     for (let j=0; j<4; j++) {
         for (let i=0; i<4; i++) {
@@ -353,8 +393,8 @@ function moveOperateBlock(y, x) {
     for (let j=0; j<4; j++) {
         for (let i=0; i<4; i++) {
             if (operate_block[j][i]) {
-                block_image[block_image.length - image_number].y = (y + j) * BLOCK_SIZE;
-                block_image[block_image.length - image_number].x = (x + i) * BLOCK_SIZE;
+                block_images[block_images.length - image_number].y = (y + j) * BLOCK_SIZE;
+                block_images[block_images.length - image_number].x = (x + i) * BLOCK_SIZE;
                 
                 image_number--;
             }
@@ -369,8 +409,10 @@ function keyInput() {
         while (!hitCheck(block_y, block_x)) block_y++;
         block_y--;
         play_timer = 0;
-        input_flag = true;
-    } else if (core.input.a) {
+        return input_flag = true;
+    }
+    
+    if (core.input.a) {
         block_x--;
         if (hitCheck(block_y, block_x)) block_x++;
         else play_timer = core.frame;
@@ -379,8 +421,10 @@ function keyInput() {
         block_x++;
         if (hitCheck(block_y, block_x)) block_x--;
         else play_timer = core.frame;
-        input = true;
-    } else if (core.input.s) {
+        input_flag = true;
+    }
+    
+    if (core.input.s) {
         block_y++;
         if (hitCheck(block_y, block_x)) block_y--;
         input_flag = true;
@@ -436,10 +480,10 @@ function deleteLines(deleted_lines, scene) {
             stage[deleted_lines[n]][i] = 0;
         }
 
-        for (let i=block_image.length-1; i>=0; i--) {
-            if(block_image[i].y == deleted_lines[n]*BLOCK_SIZE) {
-                scene.removeChild(block_image[i]);
-                block_image.splice(i, 1);
+        for (let i=block_images.length-1; i>=0; i--) {
+            if(block_images[i].y == deleted_lines[n]*BLOCK_SIZE) {
+                scene.removeChild(block_images[i]);
+                block_images.splice(i, 1);
             }
         }
     }
@@ -466,9 +510,9 @@ function updateLockBlock() {
                 stage[j][i] = 0;
                 stage[y][i] = 1;
 
-                for (let n=0; n<block_image.length; n++) {
-                    if (block_image[n].y == j*BLOCK_SIZE && block_image[n].x == i*BLOCK_SIZE) {
-                        block_image[n].y = y*BLOCK_SIZE;
+                for (let n=0; n<block_images.length; n++) {
+                    if (block_images[n].y == j*BLOCK_SIZE && block_images[n].x == i*BLOCK_SIZE) {
+                        block_images[n].y = y*BLOCK_SIZE;
                         break;
                     }
                 }
