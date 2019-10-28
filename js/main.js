@@ -42,7 +42,7 @@ window.onload = function() {
     init();
 
     core = new Core(BLOCK_SIZE * STAGE_COL, BLOCK_SIZE * STAGE_ROW);
-    core.fps = 24;
+    core.fps = 60;
     core.keybind('W'.charCodeAt(0), 'w');
     core.keybind('A'.charCodeAt(0), 'a');
     core.keybind('S'.charCodeAt(0), 's');
@@ -185,7 +185,7 @@ let MainScene = Class.create(Scene, {
         let stage_image;
         //let image_number;
         
-        this.backgroundColor = '#000000'
+        //this.backgroundColor = '#000000'
 
         for (let j=0; j<STAGE_ROW; j++) {
             for (let i=0; i<STAGE_COL; i++) {
@@ -234,7 +234,7 @@ let MainScene = Class.create(Scene, {
                 
                 case OPERATE:
                     // キー操作による移動部分
-                    if (core.frame - key_timer >= core.fps/8) {
+                    if (core.frame - key_timer >= core.fps * (2/15)) {
                         clearOperateBlock(block_y, block_x);
 
                         if (keyInput()) key_timer = core.frame;
@@ -363,33 +363,37 @@ function moveOperateBlock(y, x) {
 }
 
 function keyInput() {
+    let input_flag = false;
+
     if (core.input.w) {
         while (!hitCheck(block_y, block_x)) block_y++;
         block_y--;
         play_timer = 0;
-        return true;
+        input_flag = true;
     } else if (core.input.a) {
         block_x--;
         if (hitCheck(block_y, block_x)) block_x++;
         else play_timer = core.frame;
-        return true;
+        input_flag = true;
     } else if (core.input.d) {
         block_x++;
         if (hitCheck(block_y, block_x)) block_x--;
         else play_timer = core.frame;
-        return true;
+        input = true;
     } else if (core.input.s) {
         block_y++;
         if (hitCheck(block_y, block_x)) block_y--;
-        return true;
-    } else if (core.input.left) {
+        input_flag = true;
+    }
+    
+    if (core.input.left) {
         let before_rotated = operate_block;
         operate_block = rotateBlock(operate_block);
         if (hitCheck(block_y, block_x)) operate_block = before_rotated;
         else play_timer = core.frame;
-        return true;
+        input_flag = true;
     }
-    return false;
+    return input_flag;
 }
 
 function rotateBlock(block) {
