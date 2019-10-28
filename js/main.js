@@ -41,7 +41,7 @@ let block_y;
 let block_images = [];
 
 window.onload = function() {
-    core = new Core(BLOCK_SIZE * STAGE_COL, BLOCK_SIZE * STAGE_ROW);
+    core = new Core(BLOCK_SIZE * STAGE_COL + 150, BLOCK_SIZE * STAGE_ROW);
     core.fps = 60;
     core.keybind('W'.charCodeAt(0), 'w');
     core.keybind('A'.charCodeAt(0), 'a');
@@ -189,6 +189,8 @@ let MainScene = Class.create(Scene, {
         init();
 
         let stage_image = [];
+        let next_block;
+        let next_block_image = [];
 
         for (let j=1; j<STAGE_ROW; j++) {
             for (let i=0; i<STAGE_COL; i++) {
@@ -213,6 +215,24 @@ let MainScene = Class.create(Scene, {
                     operate_block = block[block_stack[0]];
                     block_x = 4;
                     block_y = 0;
+
+                    if (next_block_image.length != 0) {
+                        for (let n=0; n<4; n++) this.removeChild(next_block_image[n]);
+                    }
+                
+                    next_block = block[block_stack[1]];
+                    next_block_image = [];
+                    for (let j=0; j<4; j++) {
+                        for (let i=0; i<4; i++) {
+                            if (next_block[j][i]) {
+                                next_block_image.push(new Rectangle(BLOCK_SIZE, BLOCK_SIZE, block_colors[block_stack[1]]));
+                                next_block_image[next_block_image.length-1].y = BLOCK_SIZE + j*BLOCK_SIZE;
+                                next_block_image[next_block_image.length-1].x = STAGE_COL * BLOCK_SIZE + BLOCK_SIZE + i*BLOCK_SIZE;
+
+                                this.addChild(next_block_image[next_block_image.length-1]);
+                            }
+                        }
+                    }
 
                     if (hitCheck(block_y, block_x)) {
                         block_state = FAIL;
@@ -298,8 +318,8 @@ let GameOverScene = Class.create(Scene, {
 
         let gameover_label = new Label();
         gameover_label.text = 'GAME OVER';
-        gameover_label.y = 24;
-        gameover_label.x = 150;
+        gameover_label.y = 50;
+        gameover_label.x = 120;
 
         this.addChild(gameover_label);
 
