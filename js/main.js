@@ -220,6 +220,9 @@ let MainScene = Class.create(Scene, {
 
         let deleted_lines = [];
 
+        let prev_key_state = false;
+        let key_state = false;
+
         for (let j=1; j<STAGE_ROW; j++) {
             for (let i=0; i<STAGE_COL; i++) {
                 if (stage[j][i] == -1) stage_image.push(new Rectangle(BLOCK_SIZE, BLOCK_SIZE, '#999999'));
@@ -261,11 +264,20 @@ let MainScene = Class.create(Scene, {
                 
                 case OPERATE:
                     // キー操作による移動部分
-                    if (core.frame - key_timer >= core.fps / 6) {
+                    if (core.frame - key_timer >= core.fps / 12) {
                         clearOperateBlock(block_y, block_x);
 
-                        if (keyInput()) key_timer = core.frame;
+                        if (moveInput()) key_timer = core.frame;
                         
+                        moveOperateBlock(block_y, block_x);
+                    }
+
+                    // ハードドロップだけキーを押して離してから判定
+                    prev_key_state = key_state;
+                    key_state = core.input.w;
+                    if (pressKey(prev_key_state, key_state)) {
+                        clearOperateBlock(block_y, block_x);
+                        hardDrop();
                         moveOperateBlock(block_y, block_x);
                     }
                     
@@ -468,16 +480,9 @@ function moveOperateBlock(y, x) {
     }
 }
 
-function keyInput() {
+function moveInput() {
     let input_flag = false;
 
-    if (core.input.w) {
-        while (!hitCheck(block_y, block_x)) block_y++;
-        block_y--;
-        play_timer = 0;
-        return input_flag = true;
-    }
-    
     if (core.input.a) {
         block_x--;
         if (hitCheck(block_y, block_x)) block_x++;
@@ -522,6 +527,17 @@ function keyInput() {
         input_flag = true;
     }
     return input_flag;
+}
+
+function pressKey(prev_key_state, key_state) {
+    if (prev_key_state && !key_state) return true;
+    return false;
+}
+
+function hardDrop() {
+    while (!hitCheck(block_y, block_x)) block_y++;
+    block_y--;
+    play_timer = 0;
 }
 
 function holdBlock(hold_block_images, scene) {
