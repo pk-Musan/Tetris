@@ -26,9 +26,14 @@ let block_colors = [];
 let block_state;        // ブロックの状態
 let block_stack = [];   // 待機しているブロックの種類
 
-let level = 1;
+let level = 0;
 let speed;
-let deleted_line_num = 0;
+let deleted_line_num;
+let point;
+
+let hold_flag;
+let hold_block;
+let hold_block_type;
 
 let block_timer;        // ブロックが落ち始めたframe
 let key_timer = 0;      // 最後にキー操作を行ったframe
@@ -38,11 +43,11 @@ let efect_timer;
 let operate_block = [];
 let block_x;
 let block_y;
-let block_images = [];
+let block_images = [];  // 画面中の全ブロックのimageを保持, 末尾4つが操作中のブロック
 
 window.onload = function() {
     core = new Core(BLOCK_SIZE * STAGE_COL + 150, BLOCK_SIZE * STAGE_ROW);
-    core.fps = 60;
+    core.fps = 24;
     core.keybind('W'.charCodeAt(0), 'w');
     core.keybind('A'.charCodeAt(0), 'a');
     core.keybind('S'.charCodeAt(0), 's');
@@ -59,7 +64,7 @@ window.onload = function() {
 
 function init() {
     stage = [
-        [-1, -1, -1,  0,  0,  0,  0,  0,  0, -1, -1, -1],
+        [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1], //　ここは見えない
         [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
         [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
         [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
@@ -138,7 +143,13 @@ function init() {
         '#9900ff'
     ]
 
-    speed = core.fps/2;
+    speed = core.fps;
+    deleted_line_num = 0;
+    point = 0;
+
+    hold_flag = true;
+    hold_block = [];
+
     block_stack = makeRandomStack(0, 6);
     block_state = CREATE;
 }
@@ -189,8 +200,10 @@ let MainScene = Class.create(Scene, {
         init();
 
         let stage_image = [];
-        let next_block;
-        let next_block_image = [];
+        let next_block_images = [];
+        let hold_block_images = [];
+
+        let deleted_lines = [];
 
         for (let j=1; j<STAGE_ROW; j++) {
             for (let i=0; i<STAGE_COL; i++) {
@@ -207,7 +220,6 @@ let MainScene = Class.create(Scene, {
         this.addEventListener('enterframe', function() {
             switch(block_state) {
                 case CREATE:
-                    // 次のブロックが何かを見せるなら,なくなってから補充では遅い
                     if (block_stack.length == 7) {
                         block_stack = block_stack.concat(makeRandomStack(0, 6));
                     }
@@ -216,30 +228,14 @@ let MainScene = Class.create(Scene, {
                     block_x = 4;
                     block_y = 0;
 
-                    if (next_block_image.length != 0) {
-                        for (let n=0; n<4; n++) this.removeChild(next_block_image[n]);
-                    }
-                
-                    next_block = block[block_stack[1]];
-                    next_block_image = [];
-                    for (let j=0; j<4; j++) {
-                        for (let i=0; i<4; i++) {
-                            if (next_block[j][i]) {
-                                next_block_image.push(new Rectangle(BLOCK_SIZE, BLOCK_SIZE, block_colors[block_stack[1]]));
-                                next_block_image[next_block_image.length-1].y = BLOCK_SIZE + j*BLOCK_SIZE;
-                                next_block_image[next_block_image.length-1].x = STAGE_COL * BLOCK_SIZE + BLOCK_SIZE + i*BLOCK_SIZE;
-
-                                this.addChild(next_block_image[next_block_image.length-1]);
-                            }
-                        }
-                    }
+                    next_block_images = showBlock(block[block_stack[1]], next_block_images, block_colors[block_stack[1]], BLOCK_SIZE, BLOCK_SIZE + BLOCK_SIZE*STAGE_COL, this);
 
                     if (hitCheck(block_y, block_x)) {
                         block_state = FAIL;
                         break;
                     }
 
-                    createBlockImage(this); // operate_blockとblock_x, yに基づいてSpriteを生成し，block_imagesとthis(scene)に追加
+                    createBlockImage(block_stack[0], this); // operate_blockとblock_x, yに基づいてSpriteを生成し，block_imagesとthis(scene)に追加
 
                     key_timer = core.frame;
                     play_timer = core.frame;
@@ -250,7 +246,7 @@ let MainScene = Class.create(Scene, {
                 
                 case OPERATE:
                     // キー操作による移動部分
-                    if (core.frame - key_timer >= core.fps * (2/15)) {
+                    if (core.frame - key_timer >= core.fps / 6) {
                         clearOperateBlock(block_y, block_x);
 
                         if (keyInput()) key_timer = core.frame;
@@ -269,11 +265,19 @@ let MainScene = Class.create(Scene, {
                         moveOperateBlock(block_y, block_x);
                     }
 
+                    if (hold_flag && core.input.up) {
+                        hold_block_images = holdBlock(hold_block_images, this);
+                        console.log(block_images.length);
+                        break;
+                    }
+                    
+                    // ブロックのあそび時間が無くなった場合
                     if (core.frame - play_timer >= core.fps/2) {
                         clearOperateBlock(block_y, block_x);
                         block_y++;
 
                         if (hitCheck(block_y, block_x)) {
+                            hold_flag = true;
                             block_stack = block_stack.slice(1);
                             block_state = LOCK;
                         }
@@ -281,10 +285,22 @@ let MainScene = Class.create(Scene, {
                         moveOperateBlock(block_y, block_x);
                     } 
 
+                    repaintOperateBlock(this); // 一番上で回転したときにはみ出した分が見えなくなる
                     break;
                 
                 case LOCK:
-                    if (deleteLines(checkDeleteLines(), this)) {
+                    deleted_lines = checkDeleteLines()
+                    deleted_line_num += deleted_lines.length;
+
+                    if (deleteLines(deleted_lines, this)) {
+                        if (level <= 23) {
+                            level = Math.floor(deleted_line_num / 5);
+                            speed = core.fps - level;
+                            console.log("level = " + level);
+                            console.log("deleted_line_num = " + deleted_line_num);
+                            console.log("speed = " + speed);
+                        }
+
                         efect_timer = core.frame;
                         block_state = EFECT;
                     } else block_state = CREATE;
@@ -293,12 +309,6 @@ let MainScene = Class.create(Scene, {
                 case EFECT:
                     if (core.frame - efect_timer >= core.fps/2) {
                         updateLockBlock();
-                        //console.log(stage);
-                        if (level <= 21) {
-                            level = Math.floor(deleted_line_num / 10) + 1;
-                            speed = core.fps / 2 - (level-1);
-                        }
-                        console.log("delete = " + deleted_line_num + ", level = " + level);
                         block_state = CREATE;
                     } 
                     break;
@@ -363,10 +373,9 @@ function makeRandomStack(min, max) {
 }
 
 function hitCheck(y, x) {
-    for (let j=0; j<4; j++) {
-        for (let i=0; i<4; i++) {
+    for (let j=0; j<operate_block.length; j++) {
+        for (let i=0; i<operate_block[j].length; i++) {
             if (operate_block[j][i] && stage[y+j][x+i]) {
-                console.log('hit!');
                 return true;
             }
         }
@@ -374,11 +383,11 @@ function hitCheck(y, x) {
     return false;
 }
 
-function createBlockImage(scene) {
-    for (let j=0; j<4; j++) {
-        for (let i=0; i<4; i++) {
+function createBlockImage(block_type, scene) {
+    for (let j=0; j<operate_block.length; j++) {
+        for (let i=0; i<operate_block[j].length; i++) {
             if (operate_block[j][i]) {
-                block_images.push(new Rectangle(BLOCK_SIZE, BLOCK_SIZE, block_colors[block_stack[0]]));
+                block_images.push(new Rectangle(BLOCK_SIZE, BLOCK_SIZE, block_colors[block_type]));
 
                 block_images[block_images.length-1].y = (block_y + j)*BLOCK_SIZE;
 
@@ -390,9 +399,31 @@ function createBlockImage(scene) {
     }
 }
 
+function showBlock(shown_block, shown_block_images, shown_block_color, y, x, scene) {
+    if (shown_block_images.length != 0) {
+        for (let n=0; n<shown_block_images.length; n++) scene.removeChild(shown_block_images[n]);
+    }
+
+    shown_block_images = [];
+
+    for (let j=0; j<shown_block.length; j++) {
+        for (let i=0; i<shown_block[j].length; i++) {
+            if (shown_block[j][i]) {
+                shown_block_images.push(new Rectangle(BLOCK_SIZE, BLOCK_SIZE, shown_block_color));
+                shown_block_images[shown_block_images.length-1].y = y + j*BLOCK_SIZE;
+                shown_block_images[shown_block_images.length-1].x = x + i*BLOCK_SIZE;
+
+                scene.addChild(shown_block_images[shown_block_images.length-1]);
+            }
+        }
+    }
+
+    return shown_block_images;
+}
+
 function clearOperateBlock(y, x) {
-    for (let j=0; j<4; j++) {
-        for (let i=0; i<4; i++) {
+    for (let j=0; j<operate_block.length; j++) {
+        for (let i=0; i<operate_block[j].length; i++) {
             if (operate_block[j][i]) {
                 stage[y+j][x+i] = 0;
             }
@@ -401,22 +432,22 @@ function clearOperateBlock(y, x) {
 }
 
 function moveOperateBlock(y, x) {
-    for (let j=0; j<4; j++) {
-        for (let i=0; i<4; i++) {
+    for (let j=0; j<operate_block.length; j++) {
+        for (let i=0; i<operate_block[j].length; i++) {
             if (operate_block[j][i]) {
                 stage[y+j][x+i] = 1;
             }
         }
     }
 
-    let image_number = 4;
-    for (let j=0; j<4; j++) {
-        for (let i=0; i<4; i++) {
+    let image_number = 0;
+    for (let j=0; j<operate_block.length; j++) {
+        for (let i=0; i<operate_block[j].length; i++) {
             if (operate_block[j][i]) {
-                block_images[block_images.length - image_number].y = (y + j) * BLOCK_SIZE;
-                block_images[block_images.length - image_number].x = (x + i) * BLOCK_SIZE;
+                block_images[block_images.length-1 - image_number].y = (y + j) * BLOCK_SIZE;
+                block_images[block_images.length-1 - image_number].x = (x + i) * BLOCK_SIZE;
                 
-                image_number--;
+                image_number++;
             }
         }
     }
@@ -452,20 +483,75 @@ function keyInput() {
     
     if (core.input.left) {
         let before_rotated = operate_block;
+        let before_y = block_y;
+        let before_x = block_x;
+
         operate_block = rotateBlock(operate_block);
-        if (hitCheck(block_y, block_x)) operate_block = before_rotated;
-        else play_timer = core.frame;
+        if (hitCheck(block_y, block_x)) {
+            if (block_x <= 0) block_x++;
+            if (block_x + 4 >= STAGE_COL) block_x--;
+            if (block_y + 4 >= STAGE_ROW) block_y--;
+
+            if (hitCheck(block_y, block_x)) {
+                if (block_x <= 0) block_x++;
+                if (block_x + 4 >= STAGE_COL) block_x--;
+                if (block_y + 4 >= STAGE_ROW) block_y--;
+
+                if (hitCheck(block_y, block_x)) {
+                    operate_block = before_rotated;
+                    block_y = before_y;
+                    block_x = before_x;
+                } else play_timer = core.frame;
+            } else play_timer = core.frame;
+        } else play_timer = core.frame;
         input_flag = true;
     }
     return input_flag;
 }
 
+function holdBlock(hold_block_images, scene) {
+    // holdしていたブロックを一時的に退避
+    let tmp_block = hold_block;
+    let block_type = hold_block_type;
+
+    // 操作中のブロックをholdに移す
+    hold_block = operate_block;
+    hold_block_type = block_stack[0];
+
+    // holdしたブロックを表示
+    hold_block_images = showBlock(hold_block, hold_block_images, block_colors[hold_block_type], 6*BLOCK_SIZE, BLOCK_SIZE + BLOCK_SIZE*STAGE_COL, scene);
+   
+    // 操作中だったブロックを消す
+    clearOperateBlock(block_y, block_x);
+    for (let n=0; n<4; n++) {
+        scene.removeChild(block_images[block_images.length-1]);
+        block_images.pop();
+    }
+
+    // holdしていたブロックがなかった場合
+    if (tmp_block.length == 0) {
+        block_stack = block_stack.slice(1);
+        block_state = CREATE;
+    } else {
+        operate_block = tmp_block;
+        block_y = 0;
+        block_x = 4;
+        createBlockImage(block_type, scene);
+
+        key_timer = core.frame;
+        play_timer = core.frame;
+        block_timer = core.frame;
+    }
+    hold_flag = false;
+    return hold_block_images;
+}
+
 function rotateBlock(block) {
     let rotate = [];
 
-    for (let j=0; j<4; j++) {
+    for (let j=0; j<block.length; j++) {
         rotate[j] = [];
-        for (let i=0; i<4; i++) {
+        for (let i=0; i<block[j].length; i++) {
             rotate[j][i] = block[i][-j+3];
         }
     }
@@ -493,7 +579,6 @@ function checkDeleteLines() {
 
 function deleteLines(deleted_lines, scene) {
     if (deleted_lines.length == 0) return false;
-    else deleted_line_num += deleted_lines.length;
 
     for (let n=0; n<deleted_lines.length; n++) {
         for (let i=1; i<STAGE_COL-1; i++) {
@@ -539,6 +624,13 @@ function updateLockBlock() {
             }
         }
     }
+}
+
+function repaintOperateBlock(scene) {
+    for (let n=0; n<block_images.length; n++) {
+        scene.removeChild(block_images[n]);
+        if (block_images[n].y >= BLOCK_SIZE) scene.addChild(block_images[n]);
+    } 
 }
 
 function removeScene(scene) {
