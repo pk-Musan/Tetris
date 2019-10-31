@@ -43,7 +43,7 @@ let efect_timer;
 let operate_block = [];
 let block_x;
 let block_y;
-let block_images = [];  // 画面中の全ブロックのimageを保持, 末尾4つが操作中のブロック
+let block_images;  // 画面中の全ブロックのimageを保持, 末尾4つが操作中のブロック
 
 window.onload = function() {
     core = new Core(BLOCK_SIZE * STAGE_COL + 150, BLOCK_SIZE * STAGE_ROW);
@@ -62,7 +62,7 @@ window.onload = function() {
     core.start();
 };
 
-function init() {
+function init(scene) {
     stage = [
         [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1], //　ここは見えない
         [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
@@ -143,6 +143,20 @@ function init() {
         '#9900ff'
     ]
 
+    let next_label = new Label();
+    let hold_label = new Label();
+
+    next_label.text = 'NEXT';
+    next_label.y = 5*BLOCK_SIZE;
+    next_label.x = BLOCK_SIZE + BLOCK_SIZE*STAGE_COL;
+
+    hold_label.text = 'HOLD';
+    hold_label.y = 11*BLOCK_SIZE;
+    hold_label.x = BLOCK_SIZE + BLOCK_SIZE*STAGE_COL;
+
+    scene.addChild(next_label);
+    scene.addChild(hold_label);
+
     speed = core.fps;
     deleted_line_num = 0;
     point = 0;
@@ -150,6 +164,7 @@ function init() {
     hold_flag = true;
     hold_block = [];
 
+    block_images = [];
     block_stack = makeRandomStack(0, 6);
     block_state = CREATE;
 }
@@ -197,7 +212,7 @@ let MainScene = Class.create(Scene, {
         Scene.call(this);
         core.replaceScene(this);
 
-        init();
+        init(this);
 
         let stage_image = [];
         let next_block_images = [];
@@ -519,7 +534,7 @@ function holdBlock(hold_block_images, scene) {
     hold_block_type = block_stack[0];
 
     // holdしたブロックを表示
-    hold_block_images = showBlock(hold_block, hold_block_images, block_colors[hold_block_type], 6*BLOCK_SIZE, BLOCK_SIZE + BLOCK_SIZE*STAGE_COL, scene);
+    hold_block_images = showBlock(hold_block, hold_block_images, block_colors[hold_block_type], 7*BLOCK_SIZE, BLOCK_SIZE + BLOCK_SIZE*STAGE_COL, scene);
    
     // 操作中だったブロックを消す
     clearOperateBlock(block_y, block_x);
