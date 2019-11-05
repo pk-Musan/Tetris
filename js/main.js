@@ -7,7 +7,8 @@ const BLOCK_SIZE = 24;
 // Sceneの状態
 const TITLE = 0;
 const MAIN = 1;
-const GAMEOVER = 2;
+const HOWTO = 2;
+const GAMEOVER = 3;
 
 // ブロックの状態
 const CREATE = 0;    // 次のブロックに移るとき
@@ -54,6 +55,7 @@ window.onload = function() {
     core.keybind('A'.charCodeAt(0), 'a');
     core.keybind('S'.charCodeAt(0), 's');
     core.keybind('D'.charCodeAt(0), 'd');
+    core.keybind(32, 'space');
     // core.preload('', '') とか 
     
     core.onload = function() {
@@ -193,6 +195,9 @@ let System = Class.create({
             case MAIN:
                 new MainScene();
                 break;
+            case HOWTO:
+                new HowToScene();
+                break;
             case GAMEOVER:
                 new GameOverScene();
                 break;
@@ -202,21 +207,68 @@ let System = Class.create({
 
 let TitleScene = Class.create(Scene, {
     initialize: function() {
-        let title_label = new Label();
-        title_label.text = 'TETRIS';
-        title_label.x = 124;
-        title_label.y = 50;
-
         Scene.call(this);
         core.replaceScene(this);
 
+        this.backgroundColor = '#000000';
+
+        let prev_key_state = [];
+        let key_state = [];
+        let selector = 0;   // 0: START, 1: HOW TO PLAY
+
+        let title_label = new Label();
+        title_label.text = 'TETRiS';
+        title_label.color = '#ffffff';
+        title_label.x = (core.width - title_label._boundWidth) / 2;
+        title_label.y = core.height/4;
         this.addChild(title_label);
 
+        let start_label = new Label();
+        start_label.text = 'START';
+        start_label.color = '#ffffff';
+        start_label.x = (core.width - start_label._boundWidth) / 2;
+        start_label.y = core.height * (3/5);
+        this.addChild(start_label);
+
+        let howto_label = new Label();
+        howto_label.text = 'HOW TO PLAY';
+        howto_label.color = '#ffffff'
+        howto_label.x = (core.width - howto_label._boundWidth) / 2;
+        howto_label.y = start_label.y + 2*BLOCK_SIZE;
+        this.addChild(howto_label);
+
+        let arrow_label = new Label();
+        arrow_label.text = '←';
+        arrow_label.color = '#ffffff'
+        arrow_label.x = howto_label.x + howto_label._boundWidth + BLOCK_SIZE;
+        arrow_label.y = start_label.y;
+        this.addChild(arrow_label);
+
+        let space_label = new Label();
+        space_label.text = 'Press Space Key !';
+        space_label.color = '#ffffff';
+        space_label.x = (core.width - space_label._boundWidth) / 2;
+        space_label.y = howto_label.y + 3*BLOCK_SIZE;
+        this.addChild(space_label);
+
         this.addEventListener('enterframe', function() {
-            if (core.input.down) {
-                console.log("title");
+            prev_key_state[0] = key_state[0];
+            key_state[0] = core.input.space
+            if (pressKey(prev_key_state[0], key_state[0])) {
                 removeScene(this);
-                system.changeScene(MAIN);
+                if (selector == 0) system.changeScene(MAIN);
+                else if (selector == 1) system.changeScene(HOWTO);
+            }
+
+            prev_key_state[1] = key_state[1];
+            key_state[1] = core.input.up;
+            prev_key_state[2] = key_state[2];
+            key_state[2] = core.input.down;
+            if (pressKey(prev_key_state[1], key_state[1]) || pressKey(prev_key_state[2], key_state[2])) {
+                selector = (selector + 1) % 2;
+
+                if (selector == 0) arrow_label.y = start_label.y;
+                else if (selector == 1) arrow_label.y = howto_label.y;
             }
         });
     }
@@ -351,6 +403,13 @@ let MainScene = Class.create(Scene, {
                     system.changeScene(GAMEOVER);
             }
         });
+    }
+});
+
+let HowToScene = Class.create(Scene, {
+    initialize: function() {
+        Scene.call(this);
+        core.replaceScene(this);
     }
 });
 
