@@ -26,10 +26,12 @@ let block_colors = [];
 let block_state;        // ブロックの状態
 let block_stack = [];   // 待機しているブロックの種類
 
-let level = 0;
+let score;
+let level;
 let speed;
 let deleted_line_num;
-let point;
+let score_label = new Label();
+let level_label = new Label();
 
 let hold_flag;
 let hold_block;
@@ -47,7 +49,7 @@ let block_images;  // 画面中の全ブロックのimageを保持, 末尾4つ�
 
 window.onload = function() {
     core = new Core(BLOCK_SIZE * STAGE_COL + 150, BLOCK_SIZE * STAGE_ROW);
-    core.fps = 24;
+    core.fps = 60;
     core.keybind('W'.charCodeAt(0), 'w');
     core.keybind('A'.charCodeAt(0), 'a');
     core.keybind('S'.charCodeAt(0), 's');
@@ -157,9 +159,22 @@ function init(scene) {
     scene.addChild(next_label);
     scene.addChild(hold_label);
 
-    speed = core.fps;
+    score = 0;
+    level = 0;
+
+    score_label.text = 'SCORE: ' + score;
+    score_label.y = 17*BLOCK_SIZE;
+    score_label.x = BLOCK_SIZE + BLOCK_SIZE*STAGE_COL;
+
+    level_label.text = 'LEVEL: ' + level;
+    level_label.y = 19*BLOCK_SIZE;
+    level_label.x = BLOCK_SIZE + BLOCK_SIZE*STAGE_COL;
+
+    scene.addChild(score_label);
+    scene.addChild(level_label);
+
+    speed = core.fps * 0.8;
     deleted_line_num = 0;
-    point = 0;
 
     hold_flag = true;
     hold_block = [];
@@ -214,26 +229,16 @@ let MainScene = Class.create(Scene, {
 
         init(this);
 
-        let stage_image = [];
         let next_block_images = [];
         let hold_block_images = [];
 
         let deleted_lines = [];
 
-        let prev_key_state = false;
-        let key_state = false;
+        // 0: w, 1: left_arrow, 2: right_arrow
+        let prev_key_state = [false, false, false];
+        let key_state = [false, false, false];
 
-        for (let j=1; j<STAGE_ROW; j++) {
-            for (let i=0; i<STAGE_COL; i++) {
-                if (stage[j][i] == -1) stage_image.push(new Rectangle(BLOCK_SIZE, BLOCK_SIZE, '#999999'));
-                else stage_image.push(new Rectangle(BLOCK_SIZE, BLOCK_SIZE, '#000000'));
-
-                stage_image[stage_image.length-1].y = j * BLOCK_SIZE;
-                stage_image[stage_image.length-1].x = i * BLOCK_SIZE;
-                    
-                this.addChild(stage_image[stage_image.length-1]);
-            }
-        }
+        createStage(this);
 
         this.addEventListener('enterframe', function() {
             switch(block_state) {
@@ -254,6 +259,8 @@ let MainScene = Class.create(Scene, {
                     }
 
                     createBlockImage(block_stack[0], this); // operate_blockとblock_x, yに基づいてSpriteを生成し，block_imagesとthis(scene)に追加
+                    level++;
+                    level_label.text = 'LEVEL: ' + level;
 
                     key_timer = core.frame;
                     play_timer = core.frame;
@@ -264,22 +271,21 @@ let MainScene = Class.create(Scene, {
                 
                 case OPERATE:
                     // キー操作による移動部分
-                    if (core.frame - key_timer >= core.fps / 12) {
-                        clearOperateBlock(block_y, block_x);
-
+                    if (core.frame - key_timer >= core.fps / 8) {
                         if (moveInput()) key_timer = core.frame;
-                        
-                        moveOperateBlock(block_y, block_x);
                     }
 
                     // ハードドロップだけキーを押して離してから判定
-                    prev_key_state = key_state;
-                    key_state = core.input.w;
-                    if (pressKey(prev_key_state, key_state)) {
-                        clearOperateBlock(block_y, block_x);
-                        hardDrop();
-                        moveOperateBlock(block_y, block_x);
-                    }
+                    prev_key_state[0] = key_state[0];
+                    key_state[0] = core.input.w;
+                    if (pressKey(prev_key_state[0], key_state[0])) hardDrop();
+
+                    prev_key_state[1] = key_state[1];
+                    key_state[1] = core.input.left;
+                    prev_key_state[2] = key_state[2];
+                    key_state[2] = core.input.right;
+                    if (pressKey(prev_key_state[1], key_state[1])) rotateBlock(true);
+                    if (pressKey(prev_key_state[2], key_state[2])) rotateBlock(false);
                     
                     // 自由落下の部分
                     if ((core.frame - block_timer) % speed == 0) {
@@ -320,13 +326,13 @@ let MainScene = Class.create(Scene, {
                     deleted_line_num += deleted_lines.length;
 
                     if (deleteLines(deleted_lines, this)) {
-                        if (level <= 23) {
-                            level = Math.floor(deleted_line_num / 5);
-                            speed = core.fps - level;
-                            console.log("level = " + level);
-                            console.log("deleted_line_num = " + deleted_line_num);
-                            console.log("speed = " + speed);
+                        if (level <= 999) {
+                            level += deleted_lines.length;
+                            level_label.text = 'LEVEL: ' + level;
+                            updateSpeed(level);
                         }
+
+                        updateScore(deleted_lines.length);
 
                         efect_timer = core.frame;
                         block_state = EFECT;
@@ -381,6 +387,21 @@ let Rectangle = Class.create(Sprite, {
     }
 });
 
+function createStage(scene) {
+    let stage_image = [];
+
+    for (let j=1; j<STAGE_ROW; j++) {
+        for (let i=0; i<STAGE_COL; i++) {
+            if (stage[j][i] == -1) stage_image.push(new Rectangle(BLOCK_SIZE, BLOCK_SIZE, '#999999'));
+            else stage_image.push(new Rectangle(BLOCK_SIZE, BLOCK_SIZE, '#000000'));
+
+            stage_image[stage_image.length-1].y = j * BLOCK_SIZE;
+            stage_image[stage_image.length-1].x = i * BLOCK_SIZE;
+                
+            scene.addChild(stage_image[stage_image.length-1]);
+        }
+    }
+}
 
 function makeRandomStack(min, max) {
     let randoms = [];
@@ -483,6 +504,7 @@ function moveOperateBlock(y, x) {
 function moveInput() {
     let input_flag = false;
 
+    clearOperateBlock(block_y, block_x);
     if (core.input.a) {
         block_x--;
         if (hitCheck(block_y, block_x)) block_x++;
@@ -500,32 +522,7 @@ function moveInput() {
         if (hitCheck(block_y, block_x)) block_y--;
         input_flag = true;
     }
-    
-    if (core.input.left) {
-        let before_rotated = operate_block;
-        let before_y = block_y;
-        let before_x = block_x;
-
-        operate_block = rotateBlock(operate_block);
-        if (hitCheck(block_y, block_x)) {
-            if (block_x <= 0) block_x++;
-            if (block_x + 4 >= STAGE_COL) block_x--;
-            if (block_y + 4 >= STAGE_ROW) block_y--;
-
-            if (hitCheck(block_y, block_x)) {
-                if (block_x <= 0) block_x++;
-                if (block_x + 4 >= STAGE_COL) block_x--;
-                if (block_y + 4 >= STAGE_ROW) block_y--;
-
-                if (hitCheck(block_y, block_x)) {
-                    operate_block = before_rotated;
-                    block_y = before_y;
-                    block_x = before_x;
-                } else play_timer = core.frame;
-            } else play_timer = core.frame;
-        } else play_timer = core.frame;
-        input_flag = true;
-    }
+    moveOperateBlock(block_y, block_x);
     return input_flag;
 }
 
@@ -534,10 +531,44 @@ function pressKey(prev_key_state, key_state) {
     return false;
 }
 
+function rotateBlock(is_left) {
+    let before_rotated = operate_block;
+    let before_y = block_y;
+    let before_x = block_x;
+    let is_rotate = true;
+
+    clearOperateBlock(block_y, block_x);
+    operate_block = getRotateBlock(operate_block, is_left);
+
+    if (hitCheck(block_y, block_x)) {
+        if (block_x <= 0) block_x++;
+        if (block_x + 4 >= STAGE_COL) block_x--;
+        if (block_y + 4 >= STAGE_ROW) block_y--;
+
+        if (hitCheck(block_y, block_x)) {
+            if (block_x <= 0) block_x++;
+            if (block_x + 4 >= STAGE_COL) block_x--;
+            if (block_y + 4 >= STAGE_ROW) block_y--;
+
+            if (hitCheck(block_y, block_x)) {
+                operate_block = before_rotated;
+                block_y = before_y;
+                block_x = before_x;
+                is_rotate = false;
+            }
+        }
+    }
+
+    if (is_rotate) play_timer = core.frame;
+    moveOperateBlock(block_y, block_x);
+}
+
 function hardDrop() {
+    clearOperateBlock(block_y, block_x);
     while (!hitCheck(block_y, block_x)) block_y++;
     block_y--;
     play_timer = 0;
+    moveOperateBlock(block_y, block_x);
 }
 
 function holdBlock(hold_block_images, scene) {
@@ -546,7 +577,7 @@ function holdBlock(hold_block_images, scene) {
     let block_type = hold_block_type;
 
     // 操作中のブロックをholdに移す
-    hold_block = operate_block;
+    hold_block = block[block_stack[0]];
     hold_block_type = block_stack[0];
 
     // holdしたブロックを表示
@@ -577,13 +608,22 @@ function holdBlock(hold_block_images, scene) {
     return hold_block_images;
 }
 
-function rotateBlock(block) {
+function getRotateBlock(block, is_left) {
     let rotate = [];
 
-    for (let j=0; j<block.length; j++) {
-        rotate[j] = [];
-        for (let i=0; i<block[j].length; i++) {
-            rotate[j][i] = block[i][-j+3];
+    if (is_left) {
+        for (let j=0; j<block.length; j++) {
+            rotate[j] = [];
+            for (let i=0; i<block[j].length; i++) {
+                rotate[j][i] = block[i][-j+3];
+            }
+        }
+    } else {
+        for (let j=0; j<block.length; j++) {
+            rotate[j] = [];
+            for (let i=0; i<block[j].length; i++) {
+                rotate[j][i] = block[-i+3][j];
+            }
         }
     }
     return rotate;
@@ -624,6 +664,21 @@ function deleteLines(deleted_lines, scene) {
         }
     }
     return true;
+}
+
+function updateSpeed(level) {
+    if (level <= 900) speed = core.fps * 0.8 - Math.floor(level/20);
+    else speed = 1;
+}
+
+function updateScore(lines_num) {
+    if (lines_num == 1) score += 40;
+    else if (lines_num == 2) score += 100;
+    else if (lines_num == 3) score += 300;
+    else if (lines_num == 4) score += 1200;
+    else return;
+
+    score_label.text = 'SCORE: ' + score;
 }
 
 function updateLockBlock() {
