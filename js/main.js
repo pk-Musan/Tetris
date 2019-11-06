@@ -410,6 +410,44 @@ let HowToScene = Class.create(Scene, {
     initialize: function() {
         Scene.call(this);
         core.replaceScene(this);
+        this.backgroundColor = "#000000";
+
+        let prev_key_state = [];
+        let key_state = [];
+
+        let howto_label = [];
+        for (let n=0; n<7; n++) {
+            howto_label[n] = new Label();
+            howto_label[n].color = '#ffffff';
+            howto_label[n].x = BLOCK_SIZE;
+            if (n == 0) howto_label[n].y = 2*BLOCK_SIZE;
+            else howto_label[n].y = howto_label[n-1].y + 2*BLOCK_SIZE;
+            this.addChild(howto_label[n]);
+        }
+
+        howto_label[0].text = 'w : ハードドロップ(瞬時に下まで落とす)';
+        howto_label[1].text = 'a : 左に１ブロック分移動';
+        howto_label[2].text = 's : 下に１ブロック分移動';
+        howto_label[3].text = 'd : 右に１ブロック分移動';
+        howto_label[4].text = '← : 左回転';
+        howto_label[5].text = '→ : 右回転';
+        howto_label[6].text = '↑ : ホールド(操作ブロックをHOLDに移動)';
+
+        let space_label = new Label();
+        space_label.text = 'Press Space Key to Return Home !';
+        space_label.color = '#ffffff';
+        space_label.x = (core.width - space_label._boundWidth) / 2;
+        space_label.y = core.height * (3/5) + 5*BLOCK_SIZE;
+        this.addChild(space_label);
+
+        this.addEventListener('enterframe', function() {
+            prev_key_state[0] = key_state[0];
+            key_state[0] = core.input.space
+            if (pressKey(prev_key_state[0], key_state[0])) {
+                removeScene(this);
+                system.changeScene(TITLE);
+            }
+        });
     }
 });
 
@@ -417,16 +455,29 @@ let GameOverScene = Class.create(Scene, {
     initialize: function() {
         Scene.call(this);
         core.replaceScene(this);
+        this.backgroundColor = '#000000';
+
+        let prev_key_state = [];
+        let key_state = [];
 
         let gameover_label = new Label();
         gameover_label.text = 'GAME OVER';
-        gameover_label.y = 50;
-        gameover_label.x = 120;
-
+        gameover_label.color = '#ffffff';
+        gameover_label.y = core.height/2 - 2*BLOCK_SIZE;
+        gameover_label.x = (core.width - gameover_label._boundWidth) / 2;
         this.addChild(gameover_label);
 
+        let space_label = new Label();
+        space_label.text = 'Press Space Key to Return Home !';
+        space_label.color = '#ffffff';
+        space_label.x = (core.width - space_label._boundWidth) / 2;
+        space_label.y = core.height * (3/5) + 5*BLOCK_SIZE;
+        this.addChild(space_label);
+
         this.addEventListener('enterframe', function() {
-            if (core.input.up) {
+            prev_key_state[0] = key_state[0];
+            key_state[0] = core.input.space
+            if (pressKey(prev_key_state[0], key_state[0])) {
                 removeScene(this);
                 system.changeScene(TITLE);
             }
