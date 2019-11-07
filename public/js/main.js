@@ -459,20 +459,29 @@ let GameOverScene = Class.create(Scene, {
 
         let prev_key_state = [];
         let key_state = [];
+        let result_label = [];
 
-        let gameover_label = new Label();
-        gameover_label.text = 'GAME OVER';
-        gameover_label.color = '#ffffff';
-        gameover_label.y = core.height/2 - 2*BLOCK_SIZE;
-        gameover_label.x = (core.width - gameover_label._boundWidth) / 2;
-        this.addChild(gameover_label);
+        for (let n=0; n<4; n++) {
+            result_label[n] = new Label();
+            result_label[n].color = '#ffffff';
 
-        let space_label = new Label();
-        space_label.text = 'Press Space Key to Return Home !';
-        space_label.color = '#ffffff';
-        space_label.x = (core.width - space_label._boundWidth) / 2;
-        space_label.y = core.height * (3/5) + 5*BLOCK_SIZE;
-        this.addChild(space_label);
+            if (n == 0) {
+                result_label[n].y = core.height/4;
+                result_label[n].text = 'GAME OVER !';
+            } else if (n == 1) {
+                result_label[n].y = result_label[0].y + 3*BLOCK_SIZE;
+                result_label[n].text = 'SCORE : ' + score;
+            } else if (n == 2) {
+                result_label[n].y = result_label[1].y + BLOCK_SIZE;
+                result_label[n].text = 'LEVEL : ' + level;
+            } else {
+                result_label[n].y = core.height * (3/5) + 5*BLOCK_SIZE;
+                result_label[n].text = 'Press Space Key to Return Home !'
+            }
+
+            result_label[n].x = (core.width - result_label[n]._boundWidth)/2;
+            this.addChild(result_label[n]);
+        }
 
         this.addEventListener('enterframe', function() {
             prev_key_state[0] = key_state[0];
