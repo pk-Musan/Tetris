@@ -164,11 +164,11 @@ function init(scene) {
     score = 0;
     level = 0;
 
-    score_label.text = 'SCORE: ' + score;
+    score_label.text = 'SCORE : ' + score;
     score_label.y = 17*BLOCK_SIZE;
     score_label.x = BLOCK_SIZE + BLOCK_SIZE*STAGE_COL;
 
-    level_label.text = 'LEVEL: ' + level;
+    level_label.text = 'LEVEL : ' + level;
     level_label.y = 19*BLOCK_SIZE;
     level_label.x = BLOCK_SIZE + BLOCK_SIZE*STAGE_COL;
 
@@ -217,7 +217,7 @@ let TitleScene = Class.create(Scene, {
         let selector = 0;   // 0: START, 1: HOW TO PLAY
 
         let title_label = new Label();
-        title_label.text = '落ち落ちハコケシ';
+        title_label.text = '落ち落ち！ハコケシくん！';
         title_label.color = '#ffffff';
         title_label.x = (core.width - title_label._boundWidth) / 2;
         title_label.y = core.height/4;
@@ -312,7 +312,7 @@ let MainScene = Class.create(Scene, {
 
                     createBlockImage(block_stack[0], this); // operate_blockとblock_x, yに基づいてSpriteを生成し，block_imagesとthis(scene)に追加
                     level++;
-                    level_label.text = 'LEVEL: ' + level;
+                    level_label.text = 'LEVEL : ' + level;
 
                     key_timer = core.frame;
                     play_timer = core.frame;
@@ -330,8 +330,10 @@ let MainScene = Class.create(Scene, {
                     // ハードドロップだけキーを押して離してから判定
                     prev_key_state[0] = key_state[0];
                     key_state[0] = core.input.w;
-                    if (pressKey(prev_key_state[0], key_state[0])) hardDrop();
-
+                    if (pressKey(prev_key_state[0], key_state[0])) {
+                        hardDrop();
+                        score_label.text = 'SCORE : ' + score;
+                    }
                     prev_key_state[1] = key_state[1];
                     key_state[1] = core.input.left;
                     prev_key_state[2] = key_state[2];
@@ -345,7 +347,11 @@ let MainScene = Class.create(Scene, {
                         block_y++;
 
                         if (hitCheck(block_y, block_x)) block_y--;
-                        else play_timer = core.frame;   // 落下できた場合はあそびを更新しておく
+                        else {
+                            play_timer = core.frame;   // 落下できた場合はあそびを更新しておく
+                            score++;
+                            score_label.text = 'SCORE : ' + score;
+                        }
 
                         moveOperateBlock(block_y, block_x);
                     }
@@ -359,14 +365,14 @@ let MainScene = Class.create(Scene, {
                     // ブロックのあそび時間が無くなった場合
                     if (core.frame - play_timer >= core.fps/2) {
                         clearOperateBlock(block_y, block_x);
-                        block_y++;
+                        //block_y++;
 
-                        if (hitCheck(block_y, block_x)) {
+                        if (hitCheck(block_y+1, block_x)) {
                             hold_flag = true;
                             block_stack = block_stack.slice(1);
                             block_state = LOCK;
                         }
-                        block_y--;
+                        //block_y--;
                         moveOperateBlock(block_y, block_x);
                     } 
 
@@ -378,13 +384,12 @@ let MainScene = Class.create(Scene, {
                     deleted_line_num += deleted_lines.length;
 
                     if (deleteLines(deleted_lines, this)) {
+                        updateScore(deleted_lines_num);
                         if (level <= 999) {
                             level += deleted_lines.length;
                             level_label.text = 'LEVEL: ' + level;
                             updateSpeed(level);
                         }
-
-                        updateScore(deleted_lines.length);
 
                         efect_timer = core.frame;
                         block_state = EFECT;
@@ -639,6 +644,11 @@ function moveInput() {
     if (core.input.s) {
         block_y++;
         if (hitCheck(block_y, block_x)) block_y--;
+        else {
+            score++;
+            score_label.text = 'SCORE : ' + score;
+            play_timer = core.frame;
+        }
         input_flag = true;
     }
     moveOperateBlock(block_y, block_x);
@@ -684,8 +694,11 @@ function rotateBlock(is_left) {
 
 function hardDrop() {
     clearOperateBlock(block_y, block_x);
-    while (!hitCheck(block_y, block_x)) block_y++;
-    block_y--;
+    while (!hitCheck(block_y+1, block_x)) {
+        block_y++;
+        score += 2;
+    }
+    //block_y--;
     play_timer = 0;
     moveOperateBlock(block_y, block_x);
 }
@@ -791,10 +804,11 @@ function updateSpeed(level) {
 }
 
 function updateScore(lines_num) {
-    if (lines_num == 1) score += 40;
-    else if (lines_num == 2) score += 100;
-    else if (lines_num == 3) score += 300;
-    else if (lines_num == 4) score += 1200;
+    let correction = Math.floor(level/100) + 1;
+    if (lines_num == 1) score += correction * 40;
+    else if (lines_num == 2) score += correction * 100;
+    else if (lines_num == 3) score += correction * 300;
+    else if (lines_num == 4) score += correction * 1200;
     else return;
 
     score_label.text = 'SCORE: ' + score;
