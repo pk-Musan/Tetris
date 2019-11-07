@@ -217,7 +217,7 @@ let TitleScene = Class.create(Scene, {
         let selector = 0;   // 0: START, 1: HOW TO PLAY
 
         let title_label = new Label();
-        title_label.text = 'TETRiS';
+        title_label.text = '落ち落ちハコケシ';
         title_label.color = '#ffffff';
         title_label.x = (core.width - title_label._boundWidth) / 2;
         title_label.y = core.height/4;
