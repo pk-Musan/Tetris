@@ -21,8 +21,59 @@ let core;
 let system;
 
 let stage = [];
-let block = [];
-let block_colors = [];
+let block = [
+        [
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [1, 1, 1, 1],
+            [0, 0, 0, 0]
+        ],
+        [
+            [0, 0, 0, 0],
+            [0, 1, 1, 0],
+            [0, 1, 1, 0],
+            [0, 0, 0, 0]
+        ],
+        [
+            [0, 0, 0, 0],
+            [0, 1, 1, 0],
+            [1, 1, 0, 0],
+            [0, 0, 0, 0]
+        ],
+        [
+            [0, 0, 0, 0],
+            [0, 1, 1, 0],
+            [0, 0, 1, 1],
+            [0, 0, 0, 0]
+        ],
+        [
+            [0, 0, 0, 0],
+            [1, 0, 0, 0],
+            [1, 1, 1, 0],
+            [0, 0, 0, 0]
+        ],
+        [
+            [0, 0, 0, 0],
+            [0, 0, 0, 1],
+            [0, 1, 1, 1],
+            [0, 0, 0, 0]
+        ],
+        [
+            [0, 0, 0, 0],
+            [0, 1, 0, 0],
+            [1, 1, 1, 0],
+            [0, 0, 0, 0]
+        ]
+    ];
+let block_colors = [
+        '#00ffff',
+        '#ffff00',
+        '#99ff00',
+        '#ff0000',
+        '#0000ff',
+        '#ff9900',
+        '#9900ff'
+    ];
 let block_state;        // ブロックの状態
 let block_stack = [];   // 待機しているブロックの種類
 
@@ -37,7 +88,7 @@ let can_hold;
 let hold_block;
 let hold_block_type;
 
-let block_timer;        // ブロックが落ち始めたframe
+let fall_timer;        // ブロックが落ち始めたframe
 let key_timer = 0;      // 最後にキー操作を行ったframe
 let play_timer;         // ブロックが落ち切ってからのあそび(時間)
 let efect_timer;
@@ -50,7 +101,7 @@ let block_images;  // 画面中の全ブロックのimageを保持, 末尾4つ�
 let t_spin;
 
 window.onload = function() {
-    core = new Core(BLOCK_SIZE * STAGE_COL + 150, BLOCK_SIZE * STAGE_ROW);
+    core = new Core(BLOCK_SIZE * STAGE_COL + 210, BLOCK_SIZE * STAGE_ROW);
     core.fps = 60;
     core.keybind('W'.charCodeAt(0), 'w');
     core.keybind('A'.charCodeAt(0), 'a');
@@ -198,7 +249,7 @@ let MainScene = Class.create(Scene, {
 
                     key_timer = core.frame;
                     play_timer = core.frame;
-                    block_timer = core.frame;
+                    fall_timer = core.frame;
                     block_state = OPERATE;
 
                     break;
@@ -226,7 +277,7 @@ let MainScene = Class.create(Scene, {
                     if (pressKey(prev_key_state[2], key_state[2])) rotateBlock(false);
                     
                     // 自由落下の部分
-                    if ((core.frame - block_timer) % speed == 0) {
+                    if ((core.frame - fall_timer) % speed == 0) {
                         clearOperateBlock(block_y, block_x);
                         block_y++;
 
@@ -417,81 +468,6 @@ function init(scene) {
         [-1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0, -1],
         [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]
     ];
-
-    block = [
-        [
-            [0, 0, 0, 0],
-            [0, 0, 0, 0],
-            [1, 1, 1, 1],
-            [0, 0, 0, 0]
-        ],
-        [
-            [0, 0, 0, 0],
-            [0, 1, 1, 0],
-            [0, 1, 1, 0],
-            [0, 0, 0, 0]
-        ],
-        [
-            [0, 0, 0, 0],
-            [0, 1, 1, 0],
-            [1, 1, 0, 0],
-            [0, 0, 0, 0]
-        ],
-        [
-            [0, 0, 0, 0],
-            [0, 1, 1, 0],
-            [0, 0, 1, 1],
-            [0, 0, 0, 0]
-        ],
-        [
-            [0, 0, 0, 0],
-            [1, 0, 0, 0],
-            [1, 1, 1, 0],
-            [0, 0, 0, 0]
-        ],
-        [
-            [0, 0, 0, 0],
-            [0, 0, 0, 1],
-            [0, 1, 1, 1],
-            [0, 0, 0, 0]
-        ],
-        [
-            [0, 0, 0, 0],
-            [0, 1, 0, 0],
-            [1, 1, 1, 0],
-            [0, 0, 0, 0]
-        ]
-    ]
-/*
-    0000
-    0010
-    0110
-    0010
-
-    0000
-    0111
-    0010
-    0000 y++
-
-    0 1 0 0
-    0 1 1 0
-    0 1 0 0
-    0 0 0 0
-
-    0 0 0 0
-    0 1 1 1
-    0 0 1 0
-    0 0 0 0 x--
-*/
-    block_colors = [
-        '#00ffff',
-        '#ffff00',
-        '#99ff00',
-        '#ff0000',
-        '#0000ff',
-        '#ff9900',
-        '#9900ff'
-    ]
 
     let next_label = new Label();
     let hold_label = new Label();
@@ -780,7 +756,7 @@ function holdBlock(hold_block_images, scene) {
 
         key_timer = core.frame;
         play_timer = core.frame;
-        block_timer = core.frame;
+        fall_timer = core.frame;
     }
     can_hold = false;
     return hold_block_images;
@@ -867,6 +843,7 @@ function updateScore(lines_num) {
         default:
             break;
     }
+    t_spin = false;
     score_label.text = 'SCORE: ' + score;
 }
 
